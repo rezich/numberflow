@@ -57,7 +57,7 @@ setup :: () {
     );
     unlock(.I);
 
-    define(.J);
+    define(.J, capacity=1_234);
     unlock(.J);
 
     relate(.{

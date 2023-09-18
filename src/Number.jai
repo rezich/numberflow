@@ -8,12 +8,6 @@ Number :: struct {
         rate: float = FLOAT32_INFINITY;
     }
 
-    Flow_Rate :: struct {
-        input_rate:  float;
-        output_rate: float;
-        output_id:   ID;
-    }
-
     Relationship :: struct {
         input:  Rate;
         output: Rate;
@@ -152,21 +146,94 @@ report_numbers :: () {
     using state;
     PADDING        :: 1;
     VALUE_WIDTH    :: 7;
-    CAPACITY_WIDTH :: 7;
+    CAPACITY_WIDTH :: 11;
     RATE_WIDTH     :: 6;
-    id_width := enum_longest_name_count(Number.ID) + PADDING;
+    ID_WIDTH :: #run enum_longest_name_count(Number.ID) + PADDING;
 
     for numbers if it.unlocked {
-        id := pad_right(cast(Number.ID)it_index, id_width);
-        value := pad_left(it.value, VALUE_WIDTH);
-        capacity := pad_right(ifx it.capacity != FLOAT32_INFINITY then tprint(" / %", it.capacity), CAPACITY_WIDTH);
+        /*id := pad_right(cast(Number.ID)it_index, id_width);
+        value := pad_left(format_value(it.value), VALUE_WIDTH);
+        capacity := pad_right(ifx it.capacity != FLOAT32_INFINITY then tprint(" / %", format_value(it.capacity)), CAPACITY_WIDTH);
         rate_is_positive := it.rate_this_frame >= 0;
         rate := tprint("%1%2/s", ifx rate_is_positive then " ", pad_right(it.rate_this_frame, RATE_WIDTH - ifx rate_is_positive then 1));
-        log("%1%2%3%4", id, value, capacity, rate);
+        log("%1%2%3%4", id, value, capacity, rate);*/
+
+        sb: String_Builder;
+        sb.allocator = temp;
+        append(*sb, pad_right(cast(Number.ID)it_index, ID_WIDTH));
+        //append(*sb, "| ");
+        append(*sb, format_value(it.value));
+        append(*sb, ifx it.capacity != FLOAT32_INFINITY then " / " else "   ");
+        append(*sb, ifx it.capacity != FLOAT32_INFINITY then format_value(it.capacity) else "       ");
+        append(*sb, "  ");
+        append(*sb, format_rate(it.rate_this_frame));
+        append(*sb, "\n");
+        print("%", builder_to_string(*sb, temp));
     }
 }
 
 check_setup :: () {
     using state;
     for numbers assert(it.defined, "number % is not defined!", cast(Number.ID) it_index);
+}
+
+format_value :: (_value: float, $USE_LEADING_SPACES := true, $USE_TRAILING_SPACES := true) -> string {
+    value := _value;
+    suffix := "";
+    space := false;
+    decimals := 2;
+
+    suffixes := string.[
+        "K",  // 1_000
+        "M",  // 1_000_000
+        "B",  // 1_000_000_000
+        "T",  // 1_000_000_000_000
+        "Qa", // 1_000_000_000_000_000
+        "Qi", // 1_000_000_000_000_000_000
+        "Sx", // 1_000_000_000_000_000_000_000
+        "Sp", // 1_000_000_000_000_000_000_000_000
+        "O",  // 1_000_000_000_000_000_000_000_000_000
+        "N",  // 1_000_000_000_000_000_000_000_000_000_000
+        "D"   // 1_000_000_000_000_000_000_000_000_000_000_000
+    ];
+    MAX_SUFFIX_LENGTH :: 2;
+
+    for < suffixes.count-1..0 {
+        comparison := pow(10, 3.0 * (it+1));
+        if value >= comparison {
+            value /= comparison;
+            suffix = suffixes[it];
+            break;
+        }
+    }
+
+    if value >= 100 {
+        decimals = 0;
+        #if USE_LEADING_SPACES then space = true;
+    }
+    else if value >= 10 {
+        decimals = 1;
+    }
+
+    sb: String_Builder;
+    sb.allocator = temp;
+    ff := FormatFloat.{
+        value=value,
+        trailing_width=decimals,
+        zero_removal=.NO
+    };
+    #if USE_LEADING_SPACES then if value >= 0 append(*sb, " ");
+    if space then append(*sb, " ");
+    print_float(*sb, ff);
+    append(*sb, suffix);
+    #if USE_TRAILING_SPACES {
+        for 0..MAX_SUFFIX_LENGTH-suffix.count-1 append(*sb, " ");
+    }
+    return builder_to_string(*sb, temp);
+}
+format_rate :: (rate: float) -> string {
+    formatted := format_value(rate);
+    if rate == 0 then formatted.data[0] = #char "±";
+    else if rate > 0 then formatted.data[0] = #char "+";
+    return formatted;
 }

@@ -13,16 +13,17 @@ simulate :: () {
     reset_temporary_storage();
 }
 
-FRAME_RATE :: 1;
+FRAME_RATE         :: 4;
+FRAMES_TO_SIMULATE :: 8;
 simulate_frames :: (frames: int = FRAME_RATE) {
     using state;
     time.dt = 1.0 / xx FRAME_RATE;
     for 1..frames {
-        log("============================");
+        log("=============================");
         log(" t= %\ndt= %", time.t, time.dt);
-        log("----------------------------");
+        log("-----------------------------");
         simulate();
-        log("============================\n\n\n");
+        log("=============================\n\n\n");
         time.t += time.dt;
     }
     report_memory_leaks();
@@ -31,7 +32,7 @@ simulate_frames :: (frames: int = FRAME_RATE) {
 main :: () {
     setup();
     check_setup();
-    simulate_frames(5);
+    simulate_frames(FRAMES_TO_SIMULATE);
 }
 
 #load "src/Design.jai";
