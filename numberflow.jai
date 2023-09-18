@@ -1,18 +1,28 @@
+state: struct {
+    time: struct {
+        t:  float;
+        dt: float;
+    }
+    numbers: [Number.COUNT] Number;
+    relationships: [..] Number.Relationship;
+}
+
 simulate :: () {
-    simulate_numbers();
+    simulate_number_flow();
+    report_numbers();
     reset_temporary_storage();
 }
 
-FRAME_RATE :: 5;
+FRAME_RATE :: 1;
 simulate_frames :: (frames: int = FRAME_RATE) {
     using state;
     time.dt = 1.0 / xx FRAME_RATE;
     for 1..frames {
-        log("==========");
+        log("============================");
         log(" t= %\ndt= %", time.t, time.dt);
-        log("----------");
+        log("----------------------------");
         simulate();
-        log("==========\n\n\n");
+        log("============================\n\n\n");
         time.t += time.dt;
     }
     report_memory_leaks();
@@ -20,7 +30,8 @@ simulate_frames :: (frames: int = FRAME_RATE) {
 
 main :: () {
     setup();
-    simulate_frames();
+    check_setup();
+    simulate_frames(5);
 }
 
 #load "src/Design.jai";

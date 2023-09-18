@@ -1,55 +1,96 @@
 NUMBER_IDS :: #code ID :: enum {
     A;
     B;
+    C;
+    D;
+    E;
+    F;
+    G;
+    H;
+    I;
+    J;
 
     NONE;
 };
 
 NUMBER_TAGS :: #code Tag :: enum {
-
+    VOWEL;
+    COOL;
 };
 
-state: struct {
-    time: struct {
-        t:  float;
-        dt: float;
-    }
-    numbers: [Number.COUNT] Number;
-    relationships: [..] Number.Relationship;
-}
-
 setup :: () {
-    using state;
+    define(.A,
+        .VOWEL,
+        .COOL
+    );
+    unlock(.A);
 
-    define(.A);
     define(.B, capacity=3);
+    unlock(.B);
 
-    log("%", numbers.count);
-}
+    define(.C);
+    unlock(.C);
 
-simulate_numbers :: () {
-    using state;
-    
-}
+    define(.D,
+        .COOL
+    );
+    unlock(.D);
 
+    define(.E,
+        .VOWEL
+    );
+    unlock(.E);
 
+    define(.F);
+    unlock(.F);
+    earn(.F, 100);
 
+    define(.G);
+    unlock(.G);
 
-#scope_file
+    define(.H);
+    unlock(.H);
+    earn(.H, 100);
 
-define :: (id: Number.ID, capacity: float, tags: ..Number.Tag) {
-    using state;
-    number := *numbers[id];
-    number.capacity = capacity;
-    array_add(*number.*.tags, ..tags);
-}
+    define(.I,
+        .VOWEL
+    );
+    unlock(.I);
 
-define :: (id: Number.ID, tags: ..Number.Tag) {
-    define(id, capacity=FLOAT32_INFINITY, ..tags);
-}
+    define(.J);
+    unlock(.J);
 
-relate :: (relationship: Number.Relationship) {
-    array_add(*state.relationships, relationship);
-    //new_index := state.relationships.count-1;
-    //if relationship.source.id != .NONE then array_add(*numbers[relationship.source.id])
+    relate(.{
+        output=.{.A, 0.2}
+    });
+    relate(.{
+        input =.{.A, 0.1},
+        output=.{.B, 0.5}
+    });
+    relate(.{
+        input =.{.A, 0.05},
+        output=.{.C, 1}
+    });
+    relate(.{
+        input =.{.C, 0.01},
+        output=.{.D, 1}
+    });
+    relate(.{
+        output=.{.D, 0.1}
+    });
+    relate(.{
+        output=.{.E, 1}
+    });
+    relate(.{
+        input =.{.F, 1},
+        output=.{.G, 1}
+    });
+    relate(.{
+        input =.{.G, 0.1},
+        output=.{.I, 0.1}
+    });
+    relate(.{
+        input =.{.H, 1},
+        output=.{.J, 1}
+    });
 }
