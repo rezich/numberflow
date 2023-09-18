@@ -13,17 +13,17 @@ simulate :: () {
     reset_temporary_storage();
 }
 
-FRAME_RATE         :: 4;
+FRAME_RATE         :: 1;
 FRAMES_TO_SIMULATE :: 8;
 simulate_frames :: (frames: int = FRAME_RATE) {
     using state;
     time.dt = 1.0 / xx FRAME_RATE;
     for 1..frames {
-        log("=============================");
+        log("=====================================");
         log(" t= %\ndt= %", time.t, time.dt);
-        log("-----------------------------");
+        log("-------------------------------------");
         simulate();
-        log("=============================\n\n\n");
+        log("=====================================\n\n\n");
         time.t += time.dt;
     }
     report_memory_leaks();
@@ -33,6 +33,56 @@ main :: () {
     setup();
     check_setup();
     simulate_frames(FRAMES_TO_SIMULATE);
+
+/*{
+    sb: String_Builder;
+    for float.[
+        0,
+        1,
+        -1,
+        10,
+        -10,
+        100,
+        -100,
+        1000,
+        -1000,
+        10_000,
+        -10_000
+    ] {
+        append(*sb, "|");
+        format_rate(*sb, it);
+        append(*sb, "|\n");
+        log("%", builder_to_string(*sb, allocator=temp));
+    }
+}{
+    sb: String_Builder;
+    for float.[
+             0,
+             0.1,
+             0.22,
+             0.333,
+             1,
+            10,
+           100,
+           111,
+           200,
+           997,
+           998,
+           999,
+           999.99,
+         1_000,
+         1_111,
+         1_111.11,
+        10_000,
+    ] {
+        append(*sb, "|");
+        format_value(*sb, it);
+        append(*sb, "|\n");
+        log("%", builder_to_string(*sb, allocator=temp));
+    }
+}*/
+
+    
 }
 
 #load "src/Design.jai";

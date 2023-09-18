@@ -21,23 +21,23 @@ Number :: struct {
     rate_this_frame: float;
 }
 
-define :: (id: Number.ID, capacity: float, tags: ..Number.Tag) {
+define    :: (id: Number.ID, capacity: float, tags: ..Number.Tag) {
     using state;
     number := *numbers[id];
     number.capacity = capacity;
     number.defined  = true;
     array_add(*number.*.tags, ..tags);
 }
-define :: (id: Number.ID, tags: ..Number.Tag) { define(id, capacity=FLOAT32_INFINITY, ..tags); }
+define    :: (id: Number.ID, tags: ..Number.Tag) { define(id, capacity=FLOAT32_INFINITY, ..tags); }
 
-relate :: (relationship: Number.Relationship) { array_add(*state.relationships, relationship); }
+relate    :: (relationship: Number.Relationship) { array_add(*state.relationships, relationship); }
 
-unlock :: (id: Number.ID) { state.numbers[id].unlocked = true; }
-earn :: (id: Number.ID, amount: float) { state.numbers[id].value += amount; }
-spend :: (id: Number.ID, amount: float) { earn(id, -amount); }
+unlock    :: (id: Number.ID) { state.numbers[id].unlocked = true; }
+earn      :: (id: Number.ID, amount: float) { state.numbers[id].value += amount; }
+spend     :: (id: Number.ID, amount: float) { earn(id, -amount); }
 can_spend :: (id: Number.ID, amount: float) -> bool { return state.numbers[id].value >= amount; }
-expand :: (id: Number.ID, amount: float) { state.numbers[id].capacity += amount; }
-contract :: (id: Number.ID, amount: float) {
+expand    :: (id: Number.ID, amount: float) { state.numbers[id].capacity += amount; }
+contract  :: (id: Number.ID, amount: float) {
     assert(state.numbers[id].capacity - amount > 0);
     expand(id, -amount);
 }
@@ -76,16 +76,54 @@ simulate_number_flow :: () {
         }
         else {
             if !state.numbers[id].unlocked then return;
-            total_desired_rate: float;
+            // this is where there's room for improvement
             total_outputtable_value := state.numbers[id].value + state.numbers[id].rate_this_frame;
-            for children total_desired_rate += it.relationship.input.rate * state.time.dt;
-            output_scale := min(total_outputtable_value / total_desired_rate, 1);
+            total_desired_rate: float;
             for children {
-                desired_rate := it.relationship.input.rate * state.time.dt * output_scale;
-                state.numbers[it.id].rate_this_frame += desired_rate;
-                state.numbers[   id].rate_this_frame -= desired_rate;
+                capacity := state.numbers[it.relationship.output.id].capacity;
+                total_desired_rate += min(it.relationship.input.rate, ifx capacity != FLOAT32_INFINITY then capacity else FLOAT32_INFINITY);
             }
-            
+            total_desired_rate *= state.time.dt;
+            rate_of_actual_ability_to_deliver := min(total_outputtable_value / total_desired_rate, 1);
+            //log("vvv");
+            leftover_rate: float;
+            still_hungry_children: [..] int;
+            still_hungry_children.allocator = temp;
+            for children {
+                child_number := *state.numbers[it.id];
+                delivery_rate := rate_of_actual_ability_to_deliver;
+                if child_number.capacity != FLOAT32_INFINITY {
+                    difference_between_value_and_capacity := child_number.capacity-child_number.value;
+                    if difference_between_value_and_capacity > 0 {
+                        rate_to_fill := difference_between_value_and_capacity / it.relationship.input.rate / it.relationship.output.rate;
+                        if rate_to_fill < delivery_rate {
+                            leftover_rate += delivery_rate - rate_to_fill;
+                            delivery_rate = rate_to_fill;
+                        } else array_add(*still_hungry_children, it_index);
+                    } else {
+                        delivery_rate = 0;
+                    }
+                } else {
+                    array_add(*still_hungry_children, it_index);
+                }
+                //log("delivery rate for %: %", it.relationship.output.id, delivery_rate);
+                state.numbers[it.id].rate_this_frame += it.relationship.output.rate * delivery_rate;
+                state.numbers[   id].rate_this_frame -= it.relationship.input .rate * delivery_rate;
+            }
+            /*while leftover_rate > 0 && still_hungry_children.count > 0 {
+                new_leftover_rate: float;
+                leftovers_per_child := leftover_rate / still_hungry_children.count;
+                for still_hungry_children {
+                    child := *children[it];
+                    
+                }
+
+                leftover_rate += new_leftover_rate;
+                log("STILL % leftover!", leftover_rate);
+            }*/
+            if still_hungry_children.count == 0 && leftover_rate > 0 then log("*** % wasted.", leftover_rate);
+            log("% leftover, % children still hungry", leftover_rate, still_hungry_children.count);
+            //log("^^^");
         }
         for children flow(it);
     }
@@ -102,7 +140,7 @@ simulate_number_flow :: () {
     root_flow_nodes.allocator = temp;
     array_add(*root_flow_nodes, make_flow_node(.NONE));
 
-    for * state.numbers { it.rate_this_frame = 0; }
+    for * state.numbers it.rate_this_frame = 0;
 
     unflowed_relationships: [..] *Number.Relationship;
     unflowed_relationships.allocator = temp;
@@ -139,34 +177,28 @@ simulate_number_flow :: () {
     //report_flow_nodes(root_flow_nodes);
     for root_flow_nodes flow(it);
 
-    for * state.numbers it.value += it.rate_this_frame;
+    //for * state.numbers it.value = min(it.value + it.rate_this_frame, it.capacity);
+    for * state.numbers {
+        it.value = max(it.value + it.rate_this_frame, 0);
+        if it.capacity != FLOAT32_INFINITY then it.value = min(it.value, it.capacity);
+    }
 }
 
 report_numbers :: () {
     using state;
     PADDING        :: 1;
-    VALUE_WIDTH    :: 7;
-    CAPACITY_WIDTH :: 11;
-    RATE_WIDTH     :: 6;
     ID_WIDTH :: #run enum_longest_name_count(Number.ID) + PADDING;
 
     for numbers if it.unlocked {
-        /*id := pad_right(cast(Number.ID)it_index, id_width);
-        value := pad_left(format_value(it.value), VALUE_WIDTH);
-        capacity := pad_right(ifx it.capacity != FLOAT32_INFINITY then tprint(" / %", format_value(it.capacity)), CAPACITY_WIDTH);
-        rate_is_positive := it.rate_this_frame >= 0;
-        rate := tprint("%1%2/s", ifx rate_is_positive then " ", pad_right(it.rate_this_frame, RATE_WIDTH - ifx rate_is_positive then 1));
-        log("%1%2%3%4", id, value, capacity, rate);*/
-
         sb: String_Builder;
         sb.allocator = temp;
         append(*sb, pad_right(cast(Number.ID)it_index, ID_WIDTH));
-        //append(*sb, "| ");
-        append(*sb, format_value(it.value));
+        format_value(*sb, it.value);
         append(*sb, ifx it.capacity != FLOAT32_INFINITY then " / " else "   ");
-        append(*sb, ifx it.capacity != FLOAT32_INFINITY then format_value(it.capacity) else "       ");
-        append(*sb, "  ");
-        append(*sb, format_rate(it.rate_this_frame));
+        if it.capacity != FLOAT32_INFINITY then format_value(*sb, it.capacity);
+        else append(*sb, "         ");
+        for 1..PADDING append(*sb, " ");
+        format_rate(*sb, it.rate_this_frame);
         append(*sb, "\n");
         print("%", builder_to_string(*sb, temp));
     }
@@ -177,26 +209,24 @@ check_setup :: () {
     for numbers assert(it.defined, "number % is not defined!", cast(Number.ID) it_index);
 }
 
-format_value :: (_value: float, $USE_LEADING_SPACES := true, $USE_TRAILING_SPACES := true) -> string {
+format_value :: (builder: *String_Builder, _value: float) {
+    //TODO: Clean up!
     value := _value;
-    suffix := "";
-    space := false;
-    decimals := 2;
+    suffix := "  ";
 
     suffixes := string.[
-        "K",  // 1_000
-        "M",  // 1_000_000
-        "B",  // 1_000_000_000
-        "T",  // 1_000_000_000_000
+        "K ", // 1_000
+        "M ", // 1_000_000
+        "B ", // 1_000_000_000
+        "T ", // 1_000_000_000_000
         "Qa", // 1_000_000_000_000_000
         "Qi", // 1_000_000_000_000_000_000
         "Sx", // 1_000_000_000_000_000_000_000
         "Sp", // 1_000_000_000_000_000_000_000_000
-        "O",  // 1_000_000_000_000_000_000_000_000_000
-        "N",  // 1_000_000_000_000_000_000_000_000_000_000
-        "D"   // 1_000_000_000_000_000_000_000_000_000_000_000
+        "O ", // 1_000_000_000_000_000_000_000_000_000
+        "N ", // 1_000_000_000_000_000_000_000_000_000_000
+        //"D "  // 1_000_000_000_000_000_000_000_000_000_000_000
     ];
-    MAX_SUFFIX_LENGTH :: 2;
 
     for < suffixes.count-1..0 {
         comparison := pow(10, 3.0 * (it+1));
@@ -207,33 +237,41 @@ format_value :: (_value: float, $USE_LEADING_SPACES := true, $USE_TRAILING_SPACE
         }
     }
 
-    if value >= 100 {
-        decimals = 0;
-        #if USE_LEADING_SPACES then space = true;
-    }
-    else if value >= 10 {
-        decimals = 1;
-    }
-
-    sb: String_Builder;
-    sb.allocator = temp;
-    ff := FormatFloat.{
+    print_float(builder, FormatFloat.{
         value=value,
-        trailing_width=decimals,
+        width=6,
+        trailing_width=2,
         zero_removal=.NO
-    };
-    #if USE_LEADING_SPACES then if value >= 0 append(*sb, " ");
-    if space then append(*sb, " ");
-    print_float(*sb, ff);
-    append(*sb, suffix);
-    #if USE_TRAILING_SPACES {
-        for 0..MAX_SUFFIX_LENGTH-suffix.count-1 append(*sb, " ");
-    }
-    return builder_to_string(*sb, temp);
+    });
+    append(builder, " ");
+    append(builder, suffix);
+}
+format_value :: (value: float) -> string {
+    builder: String_Builder;
+    builder.allocator = temp;
+    format_value(*builder, value);
+    return builder_to_string(*builder, allocator=temp);
+}
+format_rate :: (builder: *String_Builder, rate: float) {
+         if rate == 0 then append(builder, "±");
+    else if rate <  0 then append(builder, "-");
+    else if rate >  0 then append(builder, "+");
+
+    format_value(builder, abs(rate));
 }
 format_rate :: (rate: float) -> string {
-    formatted := format_value(rate);
-    if rate == 0 then formatted.data[0] = #char "±";
-    else if rate > 0 then formatted.data[0] = #char "+";
-    return formatted;
+    builder: String_Builder;
+    builder.allocator = temp;
+    format_rate(*builder, rate);
+    return builder_to_string(*builder, allocator=temp);
 }
+
+/*
+TODO:
+
+clean up format_value()
+
+handle the case where number A flows to B and C, but if C is full, then the
+C-flow goes to B instead! (complicated)
+
+*/
