@@ -20,7 +20,7 @@ NUMBER_TAGS :: #code Tag :: enum {
 };
 
 setup :: () {
-    define(.A,
+    define(.A, capacity=10,
         .VOWEL,
         .COOL
     );
@@ -65,14 +65,14 @@ setup :: () {
     //unlock(.K);
 
     relate(.{
-        output=.{.A, 1.0}
+        output=.{.A, 1}
     });
-    relate(.{
+    /*relate(.{
         input =.{.A, 1.0},
         output=.{.B, 10}
     });
     relate(.{
         input =.{.A, 2.0},
         output=.{.C, 10}
-    });
+    });*/
 }

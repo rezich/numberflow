@@ -30,14 +30,18 @@ define    :: (id: Number.ID, capacity: float, tags: ..Number.Tag) {
 }
 define    :: (id: Number.ID, tags: ..Number.Tag) { define(id, capacity=FLOAT32_INFINITY, ..tags); }
 
-relate    :: (relationship: Number.Relationship) { array_add(*state.relationships, relationship); }
+relate    :: (relationship: Number.Relationship) -> *Number.Relationship {
+    rel := array_add(*state.relationships);
+    rel.* = relationship;
+    return rel;
+}
 
-unlock    :: (id: Number.ID) { state.numbers[id].unlocked = true; }
-earn      :: (id: Number.ID, amount: float) { state.numbers[id].value += amount; }
-spend     :: (id: Number.ID, amount: float) { earn(id, -amount); }
+unlock    :: (id: Number.ID)                        { state.numbers[id].unlocked = true;        }
+earn      :: (id: Number.ID, amount: float)         { state.numbers[id].value += amount;        }
+spend     :: (id: Number.ID, amount: float)         { earn(id, -amount);                        }
 can_spend :: (id: Number.ID, amount: float) -> bool { return state.numbers[id].value >= amount; }
-expand    :: (id: Number.ID, amount: float) { state.numbers[id].capacity += amount; }
-contract  :: (id: Number.ID, amount: float) {
+expand    :: (id: Number.ID, amount: float)         { state.numbers[id].capacity += amount;     }
+contract  :: (id: Number.ID, amount: float)         {
     assert(state.numbers[id].capacity - amount > 0);
     expand(id, -amount);
 }
@@ -81,14 +85,11 @@ simulate_number_flow :: () {
             total_desired_rate: float;
             for children {
                 capacity := state.numbers[it.relationship.output.id].capacity;
-                total_desired_rate += min(it.relationship.input.rate, ifx capacity != FLOAT32_INFINITY then capacity else FLOAT32_INFINITY);
+                capacity_minus_value := capacity - state.numbers[it.id].value;
+                total_desired_rate += min(it.relationship.input.rate, ifx capacity != FLOAT32_INFINITY then capacity_minus_value else FLOAT32_INFINITY);
             }
             total_desired_rate *= state.time.dt;
             rate_of_actual_ability_to_deliver := min(total_outputtable_value / total_desired_rate, 1);
-            //log("vvv");
-            leftover_rate: float;
-            still_hungry_children: [..] int;
-            still_hungry_children.allocator = temp;
             for children {
                 child_number := *state.numbers[it.id];
                 delivery_rate := rate_of_actual_ability_to_deliver;
@@ -97,33 +98,13 @@ simulate_number_flow :: () {
                     if difference_between_value_and_capacity > 0 {
                         rate_to_fill := difference_between_value_and_capacity / it.relationship.input.rate / it.relationship.output.rate;
                         if rate_to_fill < delivery_rate {
-                            leftover_rate += delivery_rate - rate_to_fill;
                             delivery_rate = rate_to_fill;
-                        } else array_add(*still_hungry_children, it_index);
-                    } else {
-                        delivery_rate = 0;
-                    }
-                } else {
-                    array_add(*still_hungry_children, it_index);
+                        }
+                    } else delivery_rate = 0;
                 }
-                //log("delivery rate for %: %", it.relationship.output.id, delivery_rate);
                 state.numbers[it.id].rate_this_frame += it.relationship.output.rate * delivery_rate;
                 state.numbers[   id].rate_this_frame -= it.relationship.input .rate * delivery_rate;
             }
-            /*while leftover_rate > 0 && still_hungry_children.count > 0 {
-                new_leftover_rate: float;
-                leftovers_per_child := leftover_rate / still_hungry_children.count;
-                for still_hungry_children {
-                    child := *children[it];
-                    
-                }
-
-                leftover_rate += new_leftover_rate;
-                log("STILL % leftover!", leftover_rate);
-            }*/
-            if still_hungry_children.count == 0 && leftover_rate > 0 then log("*** % wasted.", leftover_rate);
-            log("% leftover, % children still hungry", leftover_rate, still_hungry_children.count);
-            //log("^^^");
         }
         for children flow(it);
     }
