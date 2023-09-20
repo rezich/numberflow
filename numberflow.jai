@@ -1,3 +1,7 @@
+BUILD : enum { SIMULATING; DEVELOPING; DEPLOYING; } : .DEVELOPING;
+OVERRIDE_DEPLOYING_PORT :: false;
+DEBUG_MEMORY :: BUILD == .DEVELOPING;
+
 state: struct {
     time: struct {
         t:  float;
@@ -28,29 +32,30 @@ simulate_frames :: (frames: int = FRAME_RATE) {
         log("=====================================\n\n\n");
         time.t += time.dt;
     }
-    report_memory_leaks();
+    #if BUILD != .DEPLOYING then report_memory_leaks();
 }
 
 main :: () {
-    setup();
-    check_setup();
     random_seed(108);
-    ui_init();
-    report_memory_leaks();
-    report_numbers();
-    log("most lines: %", most_lines);
-    //simulate_frames(FRAMES_TO_SIMULATE);
+    setup();
+    #if BUILD != .DEPLOYING then check_setup();
+    #if BUILD == .SIMULATING then simulate_frames(FRAMES_TO_SIMULATE);
+    #if BUILD != .SIMULATING then ui_init();
+    #if BUILD == .DEVELOPING {
+        report_memory_leaks();
+        report_numbers();
+        log("most lines: %", most_lines);
+    }
 }
 
 #load "src/Design.jai";
 #load "src/Frame_Timer.jai";
-#load "src/Font.jai";
 #load "src/Line_Renderer.jai";
 #load "src/Number.jai";
 #load "src/UI.jai";
 #load "src/Util.jai";
 
-#import "Basic"()(MEMORY_DEBUGGER=true);
+#import "Basic"()(MEMORY_DEBUGGER=DEBUG_MEMORY);
 #import "Hash_Table";
 #import "Math";
 #import "Random";

@@ -48,6 +48,14 @@ ui_init :: () {
     );
 }
 
+TEST_STRING :: #string END
+THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG.
+The quick brown fox jumps over the lazy dog.
+!\"#$%%&'()*+,-./
+0123456789
+:;<=>?@[\]^_`{|}~
+END;
+
 draw_one_frame :: (dt: float) {
     Simp.clear_render_target(0, 0, 0, 1);
     Simp.set_shader_for_color();
@@ -62,7 +70,7 @@ draw_one_frame :: (dt: float) {
     for state.numbers {
         if it.capacity == FLOAT32_INFINITY then continue;
         lower_left := upper_left_corner - Vector2.{BAR_MARGIN, offset};
-        push_text(lower_left + .{0, BAR_LABEL_SCALE.y}, "AAA");
+        //push_text(lower_left + .{0, BAR_LABEL_SCALE.y}, "AAA");
         /*push_line(lower_left, lower_left + .{0, BAR_HEIGHT});
         lower_right := lower_left + .{BAR_WIDTH, 0};
         push_line(lower_right, lower_right + .{0, BAR_HEIGHT});
@@ -73,11 +81,11 @@ draw_one_frame :: (dt: float) {
         offset += BAR_HEIGHT + BAR_MARGIN;
     }
 
-    push_text(.{100, 100}, "Hello, world!",
-        //scale=.{4,2}
-        //scale=.{4 + 2*cast(float) cos(time), 8},
-        //shiver=3
-    );
+
+
+    push_text(.{5, 50}, TEST_STRING);
+    push_text(.{9, 150}, TEST_STRING, .{glyph.scale=.{9,9}});
+
     render_lines();
     flush_lines();
 }
@@ -85,8 +93,7 @@ draw_one_frame :: (dt: float) {
 Simp  :: #import "Simp";
 Input :: #import "Input";
 #run {
-    #if OS == .WINDOWS {
-        WR :: #import "Windows_Resources";
-        //WR.disable_runtime_console();
+    #if OS == .WINDOWS && BUILD == .DEPLOYING {
+        (#import "Windows_Resources").disable_runtime_console();
     }
 }
