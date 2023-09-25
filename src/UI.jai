@@ -41,50 +41,68 @@ ui_init :: () {
 
     loop_frame_timer(
         process_events=process_events,
-        fixed_update=null,
-        variable_update=simulate,
+        fixed_update=simulate,
+        variable_update=null,
         render=draw_one_frame,
         present=present
     );
 }
-
-TEST_STRING :: #string END
-THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG.
-The quick brown fox jumps over the lazy dog.
-!\"#$%%&'()*+,-./
-0123456789
-:;<=>?@[\]^_`{|}~
-END;
 
 draw_one_frame :: (dt: float) {
     Simp.clear_render_target(0, 0, 0, 1);
     Simp.set_shader_for_color();
     time := get_time();
 
-    BAR_HEIGHT :: 12;
-    BAR_MARGIN :: 8;
-    BAR_WIDTH  :: 100;
-    offset: float = BAR_MARGIN;
-    upper_left_corner := Vector2.{10, cast(float) window_height - BAR_HEIGHT};
-    BAR_LABEL_SCALE :: Vector2.{8, BAR_HEIGHT};
-    for state.numbers {
-        if it.capacity == FLOAT32_INFINITY then continue;
-        lower_left := upper_left_corner - Vector2.{BAR_MARGIN, offset};
-        //push_text(lower_left + .{0, BAR_LABEL_SCALE.y}, "AAA");
-        /*push_line(lower_left, lower_left + .{0, BAR_HEIGHT});
-        lower_right := lower_left + .{BAR_WIDTH, 0};
-        push_line(lower_right, lower_right + .{0, BAR_HEIGHT});
-        middle_left := lower_left + .{0, BAR_HEIGHT/2};
-        push_line(middle_left, middle_left + .{(it.value / it.capacity) * BAR_WIDTH, 0});*/
-        
-        //immediate_line(.{0,offset}, .{100 * (it.value / it.capacity),offset}, 4, .{1,1,1,1});
-        offset += BAR_HEIGHT + BAR_MARGIN;
+    {
+        LEFT               :: 4;
+        TOP                :: 4;
+        GLYPH_WIDTH        :: 5;
+        BAR_HEIGHT         :: 9;
+        TYPESETTING        :: Typesetting.{glyph.scale=.{GLYPH_WIDTH, BAR_HEIGHT}, alignment=.RIGHT};
+        BAR_WIDTH_IN_CHARS :: 16;
+        BAR_WIDTH          :: #run measure_text(BAR_WIDTH_IN_CHARS, typesetting=TYPESETTING).x;
+        BAR_SPACING        :: 4;
+
+        measure_longest := measure_text(Number.LONGEST_ID_LENGTH, typesetting=TYPESETTING);
+
+        upper_left_corner := Vector2.{0, cast(float) window_height} + Vector2.{LEFT, -TOP} + Vector2.{measure_longest.x + BAR_SPACING, 0};
+
+        current_uncapped_number := 1;
+
+        for state.numbers {
+            if !it.unlocked then continue;
+            if it.capacity == FLOAT32_INFINITY then continue;
+            bar_lower_left := upper_left_corner - Vector2.{0, BAR_HEIGHT * cast(float) current_uncapped_number + BAR_SPACING * cast(float) (current_uncapped_number-1)};
+            bar_upper_right := bar_lower_left + Vector2.{BAR_WIDTH, BAR_HEIGHT};
+            /*Simp.set_shader_for_color(enable_blend=true);
+            Simp.immediate_quad(
+                bar_lower_left.x,
+                bar_lower_left.y,
+                bar_upper_right.x,
+                bar_upper_right.y,
+            .{1,1,1,.25});*/
+            push_line(bar_lower_left, bar_lower_left + Vector2.{0,BAR_HEIGHT-1});
+            bar_lower_right := bar_lower_left+Vector2.{BAR_WIDTH-1,0};
+            push_line(bar_lower_right, bar_lower_right + Vector2.{0, BAR_HEIGHT-1});
+            bar_middle_left := bar_lower_left + Vector2.{0, BAR_HEIGHT/2};
+            bar_middle_right := floor(bar_middle_left + Vector2.{BAR_WIDTH-1,0} * (it.value / it.capacity));
+            push_line(bar_middle_left, bar_middle_right);
+            
+            label_origin := bar_lower_left + floor(TYPESETTING.glyph.scale * .5) * Vector2.{-1,1} - Vector2.{BAR_SPACING+1,0};
+
+            label_typesetting := TYPESETTING;
+            //label_typesetting.glyph.shiver = ifx it.rate_this_frame > 0 then 1;
+            push_text(label_origin, tprint("%", cast(Number.ID) it_index), label_typesetting);
+
+            rate_typesetting := TYPESETTING;
+            rate_typesetting.alignment = .LEFT;
+            //rate_typesetting.glyph.shiver = ifx it.rate_this_frame > 0 then 1;
+            rate_origin := bar_lower_right + floor(TYPESETTING.glyph.scale * .5) + Vector2.{BAR_SPACING+1, 0};
+            push_text(rate_origin, format_rate(it.rate_this_frame * 60), rate_typesetting);
+
+            current_uncapped_number += 1;
+        }
     }
-
-
-
-    push_text(.{5, 50}, TEST_STRING);
-    push_text(.{9, 150}, TEST_STRING, .{glyph.scale=.{9,9}});
 
     render_lines();
     flush_lines();

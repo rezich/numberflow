@@ -1,6 +1,7 @@
 Number :: struct {
     #insert NUMBER_IDS;
     COUNT :: #run enum_highest_value(ID);
+    LONGEST_ID_LENGTH :: #run get_longest_id_length(ID);
     #insert NUMBER_TAGS;
 
     Rate :: struct {
@@ -84,12 +85,14 @@ simulate_number_flow :: () {
             total_outputtable_value := state.numbers[id].value + state.numbers[id].rate_this_frame;
             total_desired_rate: float;
             for children {
-                capacity := state.numbers[it.relationship.output.id].capacity;
+                child_number := state.numbers[it.relationship.output.id];
+                if !child_number.unlocked then continue;
+                capacity := child_number.capacity;
                 capacity_minus_value := capacity - state.numbers[it.id].value;
                 total_desired_rate += min(it.relationship.input.rate, ifx capacity != FLOAT32_INFINITY then capacity_minus_value else FLOAT32_INFINITY);
             }
             total_desired_rate *= state.time.dt;
-            rate_of_actual_ability_to_deliver := min(total_outputtable_value / total_desired_rate, 1);
+            rate_of_actual_ability_to_deliver := min(total_outputtable_value / total_desired_rate, total_desired_rate); // ?
             for children {
                 child_number := *state.numbers[it.id];
                 delivery_rate := rate_of_actual_ability_to_deliver;
@@ -234,7 +237,7 @@ format_value :: (value: float) -> string {
     return builder_to_string(*builder, allocator=temp);
 }
 format_rate :: (builder: *String_Builder, rate: float) {
-         if rate == 0 then append(builder, "±");
+         if rate == 0 then append(builder, " "); // ±
     else if rate <  0 then append(builder, "-");
     else if rate >  0 then append(builder, "+");
 
@@ -245,6 +248,20 @@ format_rate :: (rate: float) -> string {
     builder.allocator = temp;
     format_rate(*builder, rate);
     return builder_to_string(*builder, allocator=temp);
+}
+
+
+
+#scope_file
+
+
+
+get_longest_id_length :: ($t: Type) -> int {
+    longest := 0;
+    names := enum_names(t);
+    names.count -= 1; // omit .NONE
+    for names if it.count > longest then longest = it.count;
+    return longest;
 }
 
 /*

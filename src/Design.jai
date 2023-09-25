@@ -1,15 +1,6 @@
 NUMBER_IDS :: #code ID :: enum {
-    A;
-    B;
-    C;
-    D;
-    E;
-    F;
-    G;
-    H;
-    I;
-    J;
-    K;
+    WOOD;
+    LUMBER;
 
     NONE;
 };
@@ -20,59 +11,21 @@ NUMBER_TAGS :: #code Tag :: enum {
 };
 
 setup :: () {
-    define(.A, capacity=10,
+    define(.WOOD, capacity=10,
         .VOWEL,
         .COOL
     );
-    unlock(.A);
+    unlock(.WOOD);
+    //earn(.WOOD, 100);
 
-    define(.B, capacity=3);
-    unlock(.B);
-
-    define(.C);
-    unlock(.C);
-
-    define(.D,
-        .COOL
-    );
-    //unlock(.D);
-
-    define(.E,
-        .VOWEL
-    );
-    //unlock(.E);
-
-    define(.F, capacity=100);
-    //unlock(.F);
-    earn(.F, 100);
-
-    define(.G);
-    //unlock(.G);
-
-    define(.H);
-    //unlock(.H);
-    earn(.H, 100);
-
-    define(.I,
-        .VOWEL
-    );
-    //unlock(.I);
-
-    define(.J, capacity=1_234);
-    //unlock(.J);
-
-    define(.K);
-    //unlock(.K);
+    define(.LUMBER, capacity=10);
+    //unlock(.LUMBER);
 
     relate(.{
-        output=.{.A, 1}
-    });
-    /*relate(.{
-        input =.{.A, 1.0},
-        output=.{.B, 10}
+        output=.{.WOOD, 1}
     });
     relate(.{
-        input =.{.A, 2.0},
-        output=.{.C, 10}
-    });*/
+        input =.{.WOOD,   2},
+        output=.{.LUMBER, 1}
+    });
 }

@@ -89,17 +89,27 @@ Typesetting :: struct {
         spacing: int     = 1;
         shiver:  int     = 0;
     }
+    alignment: enum {LEFT; CENTER; RIGHT;} = .LEFT;
 }
 
 push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
     rng :: random_get_zero_to_one;
     cursor := position;
     using typesetting;
+
+    if alignment == {
+        case .LEFT;
+        case .CENTER; cursor -= Vector2.{(measure_text(text, typesetting).x-1)*.5,0};
+        case .RIGHT;  cursor -= Vector2.{measure_text(text, typesetting).x - glyph.scale.x,0};
+    }
+
     using glyph;
+
     glyph_scale := floor(.{
         (scale.x-1)*.5,
         (scale.y-1)*.5
     });
+
     for 0..text.count-1 {
         stroke_point :: (sp: Stroke.Point) -> Vector2 #expand {
             v: Vector2;
@@ -148,6 +158,32 @@ push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
         }
         cursor += Vector2.{glyph.scale.x+spacing,0};
     }
+}
+
+measure_text :: (text: string, using typesetting: Typesetting = .{}) -> Vector2 {
+    handle_end_of_line :: () #expand {
+        if `chars_this_line > `max_chars_per_line then `max_chars_per_line = `chars_this_line;
+        `chars_this_line = 0;
+        `lines += 1;
+    }
+    lines := 0;
+    chars_this_line: int;
+    max_chars_per_line: int;
+    for 0..text.count-1 {
+        if text[it] == #char "\n" {
+            handle_end_of_line();
+            continue;
+        } else chars_this_line += 1;
+    }
+    handle_end_of_line();
+    return measure_text(max_chars_per_line, lines, typesetting);
+}
+
+measure_text :: (columns: int, rows: int = 1, using typesetting: Typesetting = .{}) -> Vector2 {
+    return Vector2.{
+        cast(float) columns * glyph.scale.x + max(columns-1, 0) * cast(float) glyph.spacing,
+        cast(float) rows    * glyph.scale.y + max(rows   -1, 0) * cast(float) glyph.spacing
+    };
 }
 
 render_lines :: () {

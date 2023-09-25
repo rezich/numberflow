@@ -38,7 +38,7 @@ simulate_frames :: (frames: int = FRAME_RATE) {
 main :: () {
     random_seed(108);
     setup();
-    #if BUILD != .DEPLOYING then check_setup();
+    #if BUILD != .DEPLOYING  then check_setup();
     #if BUILD == .SIMULATING then simulate_frames(FRAMES_TO_SIMULATE);
     #if BUILD != .SIMULATING then ui_init();
     #if BUILD == .DEVELOPING {
