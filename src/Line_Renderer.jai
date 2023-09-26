@@ -1,18 +1,20 @@
-RENDER_GLYPH_BACKGROUNDS :: false;
+RENDER_GLYPH_BACKGROUNDS :: true;
 
 
 
 
 immediate_line :: (start: Vector2, end: Vector2, breadth: float, color: Vector4) {
     theta := atan2(end.y-start.y, end.x-start.x);
-    offset := Vector2.{-sin(theta), cos(theta)} * breadth * .5;
+
+    perpendicular := Vector2.{-sin(theta),  cos(theta)} * breadth * .5;
+    parallel      := Vector2.{ cos(theta),  sin(theta)} * breadth * .5;
 
     Simp.set_shader_for_color(enable_blend=true);
     Simp.immediate_quad(
-        start + offset,
-        start - offset,
-        end   - offset,
-        end   + offset,
+        start - parallel  + perpendicular,
+        start - parallel  - perpendicular,
+        end   + parallel  - perpendicular,
+        end   + parallel  + perpendicular,
         color
     );
 }
@@ -20,16 +22,6 @@ immediate_line :: (start: Vector2, end: Vector2, breadth: float, color: Vector4)
 immediate_pixel_line :: inline (start: Vector2, end: Vector2, color: Vector4) {
     OFFSET :: Vector2.{.5,.5};
     immediate_line(floor(start)+OFFSET, floor(end)+OFFSET, 1, color);
-    Simp.immediate_quad(
-        start.x,   start.y,
-        start.x+1, start.y+1,
-        color
-    );
-    Simp.immediate_quad(
-        end.x,   end.y,
-        end.x+1, end.y+1,
-        color
-    );
 }
 
 immediate_circle :: (origin: Vector2, radius: float, breadth: float, segments: int = 12, color: Vector4) {
@@ -138,12 +130,13 @@ push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
         lower_left  := stroke_point(.{.NEGATIVE_ONE, .NEGATIVE_ONE});
         upper_right := stroke_point(.{.POSITIVE_ONE, .POSITIVE_ONE});
         #if RENDER_GLYPH_BACKGROUNDS {
+            with_alpha :: (v, a) => Vector4.{v.x,v.y,v.z,a};
             C_BACKGROUND  :: Vector4.{.2,.2,.2,1};
-            C_BACKGROUND2 :: Vector4.{.4,.4,.4,1};
-            C_CENTER      :: Vector4.{ 1, 1, 1,1};
-            Simp.immediate_quad(lower_left.x, lower_left.y, upper_right.x+1, upper_right.y+1, C_BACKGROUND);
-            immediate_pixel_line(.{lower_left.x, cursor.y}, .{upper_right.x, cursor.y}, C_BACKGROUND2);
-            immediate_pixel_line(.{cursor.x, lower_left.y}, .{cursor.x, upper_right.y}, C_BACKGROUND2);
+            //C_CENTER      :: Vector4.{ 1, 1, 1,1};
+            Simp.set_shader_for_color(enable_blend=true);
+            Simp.immediate_quad(lower_left.x, lower_left.y, upper_right.x+1, upper_right.y+1, with_alpha(C_BACKGROUND, 0.2));
+            //immediate_pixel_line(.{lower_left.x, cursor.y}, .{upper_right.x, cursor.y}, with_alpha(C_BACKGROUND, 0.2));
+            //immediate_pixel_line(.{cursor.x, lower_left.y}, .{cursor.x, upper_right.y}, with_alpha(C_BACKGROUND, 0.2));
             //Simp.immediate_quad(cursor.x, cursor.y, cursor.x+1, cursor.y+1, C_CENTER);
         }
 

@@ -1,31 +1,37 @@
 NUMBER_IDS :: #code ID :: enum {
+    MANA;
+
     WOOD;
     LUMBER;
+
+    GEMS;
 
     NONE;
 };
 
 NUMBER_TAGS :: #code Tag :: enum {
-    VOWEL;
-    COOL;
+    MAGICAL;
 };
 
 setup :: () {
-    define(.WOOD, capacity=10,
-        .VOWEL,
-        .COOL
+    define(.MANA, capacity=10,
+        .MAGICAL
     );
+    unlock(.MANA);
+    
+
+    define(.WOOD, capacity=100);
     unlock(.WOOD);
-    //earn(.WOOD, 100);
+    earn(.WOOD, 37);
 
     define(.LUMBER, capacity=10);
-    //unlock(.LUMBER);
+    unlock(.LUMBER);
+
+    define(.GEMS);
+    unlock(.GEMS);
+    earn(.GEMS, 123456);
 
     relate(.{
-        output=.{.WOOD, 1}
-    });
-    relate(.{
-        input =.{.WOOD,   2},
-        output=.{.LUMBER, 1}
+        output=.{.MANA, 1}
     });
 }
