@@ -49,7 +49,7 @@ ui_init :: () {
 }
 
 draw_one_frame :: (dt: float) {
-    Simp.clear_render_target(0, 0, 0, 1);
+    Simp.clear_render_target(BACKGROUND.x, BACKGROUND.y, BACKGROUND.z, 1);
     Simp.set_shader_for_color();
     time := get_time();
 
@@ -63,7 +63,11 @@ draw_one_frame :: (dt: float) {
         BAR_WIDTH_IN_CHARS :: 16;
         BAR_WIDTH          :: #run measure_text(BAR_WIDTH_IN_CHARS, typesetting=TYPESETTING).x;
         BAR_SPACING        :: 4;
-        SMALL_TYPESETTING  :: Typesetting.{glyph.scale=.{SMALL_GLYPH_SIZE, SMALL_GLYPH_SIZE}, alignment=.RIGHT};
+        SMALL_TYPESETTING  :: Typesetting.{
+            glyph.scale=.{SMALL_GLYPH_SIZE, SMALL_GLYPH_SIZE},
+            alignment=.RIGHT,
+            style=.PROPORTIONAL
+        };
 
         measure_longest := measure_text(Number.LONGEST_ID_LENGTH, typesetting=TYPESETTING);
 
@@ -77,13 +81,7 @@ draw_one_frame :: (dt: float) {
 
             bar_lower_left := upper_left_corner - Vector2.{0, BAR_HEIGHT * cast(float) current_number_vertically + BAR_SPACING * cast(float) (current_number_vertically-1)};
             bar_upper_right := bar_lower_left + Vector2.{BAR_WIDTH, BAR_HEIGHT};
-            /*Simp.set_shader_for_color(enable_blend=true);
-            Simp.immediate_quad(
-                bar_lower_left.x,
-                bar_lower_left.y,
-                bar_upper_right.x,
-                bar_upper_right.y,
-            .{1,1,1,.25});*/
+
             push_line(bar_lower_left, bar_lower_left + Vector2.{0,BAR_HEIGHT-1});
             bar_lower_right := bar_lower_left+Vector2.{BAR_WIDTH-1,0};
             push_line(bar_lower_right, bar_lower_right + Vector2.{0, BAR_HEIGHT-1});
@@ -97,6 +95,7 @@ draw_one_frame :: (dt: float) {
             value_origin.y -= 1;
             value_origin.x = max(value_origin.x-1, bar_lower_left.x+value_text_measurements.x);
             value_typesetting := SMALL_TYPESETTING;
+            value_typesetting.style = .PROPORTIONAL;
             push_text(value_origin, value_text, value_typesetting);
             
             label_origin := bar_lower_left + floor(TYPESETTING.glyph.scale*.5) * Vector2.{-1,1} - Vector2.{BAR_SPACING+1,0};
@@ -107,6 +106,7 @@ draw_one_frame :: (dt: float) {
             rate_origin := bar_lower_right + floor(TYPESETTING.glyph.scale*.5) + Vector2.{BAR_SPACING+1, 0};
             rate_typesetting := TYPESETTING;
             rate_typesetting.alignment = .LEFT;
+            //rate_typesetting.style = .PROPORTIONAL;
             //rate_typesetting.glyph.shiver = ifx it.rate_this_frame > 0 then 1;
             push_text(rate_origin, format_rate(it.rate_this_frame * 60), rate_typesetting);
 
@@ -126,8 +126,18 @@ draw_one_frame :: (dt: float) {
             value_origin := label_origin + Vector2.{BAR_SPACING + TYPESETTING.glyph.scale.x,0};
             value_typesetting := TYPESETTING;
             value_typesetting.alignment = .LEFT;
+            value_typesetting.style = .PROPORTIONAL;
             push_text(value_origin, tprint("%", format_value(it.value)), value_typesetting);
         }
+    }
+
+    {
+        push_text(.{20,130}, "FLAT HEADING TEST", .{
+            glyph.scale=.{15,5},
+            proportional_space_width=3,
+            style=.PROPORTIONAL,
+            glyph.shiver=2
+        });
     }
 
     render_lines();
@@ -136,8 +146,5 @@ draw_one_frame :: (dt: float) {
 
 Simp  :: #import "Simp";
 Input :: #import "Input";
-#run {
-    #if OS == .WINDOWS && BUILD == .DEPLOYING {
-        (#import "Windows_Resources").disable_runtime_console();
-    }
-}
+
+#run #if OS == .WINDOWS && BUILD == .DEPLOYING then (#import "Windows_Resources").disable_runtime_console();

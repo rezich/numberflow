@@ -1,6 +1,17 @@
-BUILD : enum { SIMULATING; DEVELOPING; DEPLOYING; } : .DEVELOPING;
-OVERRIDE_DEPLOYING_PORT :: false;
+BUILD    : enum { SIMULATING; DEVELOPING; DEPLOYING; } : .DEVELOPING;
+PLATFORM : enum { WINDOWS; PLAYDATE; WEBASM; }         : .WINDOWS;
+
+
 DEBUG_MEMORY :: BUILD == .DEVELOPING;
+
+
+COLORS :: struct {
+    BLACK :: Vector4.{.196, .184, .157, 1};
+    WHITE :: Vector4.{.694, .682, .655, 1};
+}
+
+BACKGROUND :: COLORS.BLACK;
+FOREGROUND :: #run ifx BACKGROUND == COLORS.WHITE then COLORS.BLACK else COLORS.WHITE;
 
 state: struct {
     time: struct {
@@ -19,20 +30,22 @@ simulate :: (dt: float) {
     reset_temporary_storage();
 }
 
-FRAME_RATE         :: 1;
-FRAMES_TO_SIMULATE :: 8;
-simulate_frames :: (frames: int = FRAME_RATE) {
-    using state;
-    time.dt = 1.0 / xx FRAME_RATE;
-    for 1..frames {
-        log("=====================================");
-        log(" t= %\ndt= %", time.t, time.dt);
-        log("-------------------------------------");
-        //simulate();
-        log("=====================================\n\n\n");
-        time.t += time.dt;
+#if BUILD == .SIMULATING {
+    FRAME_RATE         :: 1;
+    FRAMES_TO_SIMULATE :: 8;
+    simulate_frames :: (frames: int = FRAME_RATE) {
+        using state;
+        time.dt = 1.0 / xx FRAME_RATE;
+        for 1..frames {
+            log("=====================================");
+            log(" t= %\ndt= %", time.t, time.dt);
+            log("-------------------------------------");
+            //simulate();
+            log("=====================================\n\n\n");
+            time.t += time.dt;
+        }
+        #if BUILD != .DEPLOYING then report_memory_leaks();
     }
-    #if BUILD != .DEPLOYING then report_memory_leaks();
 }
 
 main :: () {

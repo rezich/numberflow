@@ -1,4 +1,15 @@
-RENDER_GLYPH_BACKGROUNDS :: true;
+DEBUG_GLYPHS :: false;
+
+Typesetting :: struct {
+    glyph: struct {
+        scale:   Vector2 = .{5,9};
+        spacing: int     = 1;
+        shiver:  int     = 0;
+    }
+    alignment: enum { LEFT;    CENTER;    RIGHT; } = .LEFT;
+    style:     enum { FIXED_WIDTH; PROPORTIONAL; } = .FIXED_WIDTH;
+    proportional_space_width: int = 1;
+}
 
 
 
@@ -54,7 +65,7 @@ round_away_from_zero :: inline (using v: Vector2) -> Vector2 { return .{round_aw
 
 Line :: struct {
     MAXIMUM :: 1000;
-    COLOR   :: Vector4.{1,1,1,1};
+    COLOR   :: FOREGROUND;
     start: Vector2;
     end:   Vector2;
 }
@@ -75,15 +86,6 @@ push_line :: (start: Vector2, end: Vector2) {
     next_line += 1;
 }
 
-Typesetting :: struct {
-    glyph: struct {
-        scale:   Vector2 = .{5,9};
-        spacing: int     = 1;
-        shiver:  int     = 0;
-    }
-    alignment: enum {LEFT; CENTER; RIGHT;} = .LEFT;
-}
-
 push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
     rng :: random_get_zero_to_one;
     cursor := position;
@@ -102,77 +104,134 @@ push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
         (scale.y-1)*.5
     });
 
-    for 0..text.count-1 {
-        stroke_point :: (sp: Stroke.Point) -> Vector2 #expand {
-            v: Vector2;
-            if sp.x == {
-                case .NEGATIVE_ONE;  v.x = -`glyph_scale.x;
-                case .NEGATIVE_HALF; v.x = round_away_from_zero(-`glyph_scale.x * .5);
-                case .ZERO;          v.x = 0;
-                case .POSITIVE_HALF; v.x = round_away_from_zero(`glyph_scale.x * .5);
-                case .POSITIVE_ONE;  v.x = `glyph_scale.x;
-            }
-            if sp.y == {
-                case .NEGATIVE_ONE;  v.y = -`glyph_scale.y;
-                case .NEGATIVE_HALF; v.y = round_away_from_zero(-`glyph_scale.y * .5);
-                case .ZERO;          v.y = 0;
-                case .POSITIVE_HALF; v.y = round_away_from_zero(`glyph_scale.y * .5);
-                case .POSITIVE_ONE;  v.y = `glyph_scale.y;
-            }
-            return `cursor + v;
-        }
-
-        if text[it] == #char "\n" {
+    for text_index: 0..text.count-1 {
+        if text[text_index] == #char "\n" {
             cursor = Vector2.{position.x, cursor.y - (glyph.scale.y+spacing)};
             continue;
-        }
-
-        lower_left  := stroke_point(.{.NEGATIVE_ONE, .NEGATIVE_ONE});
-        upper_right := stroke_point(.{.POSITIVE_ONE, .POSITIVE_ONE});
-        #if RENDER_GLYPH_BACKGROUNDS {
-            with_alpha :: (v, a) => Vector4.{v.x,v.y,v.z,a};
-            C_BACKGROUND  :: Vector4.{.2,.2,.2,1};
-            //C_CENTER      :: Vector4.{ 1, 1, 1,1};
-            Simp.set_shader_for_color(enable_blend=true);
-            Simp.immediate_quad(lower_left.x, lower_left.y, upper_right.x+1, upper_right.y+1, with_alpha(C_BACKGROUND, 0.2));
-            //immediate_pixel_line(.{lower_left.x, cursor.y}, .{upper_right.x, cursor.y}, with_alpha(C_BACKGROUND, 0.2));
-            //immediate_pixel_line(.{cursor.x, lower_left.y}, .{cursor.x, upper_right.y}, with_alpha(C_BACKGROUND, 0.2));
-            //Simp.immediate_quad(cursor.x, cursor.y, cursor.x+1, cursor.y+1, C_CENTER);
         }
 
         shiver_offset := ifx shiver != 0
             then floor(Vector2.{-shiver*.5,-shiver*.5} + Vector2.{rng(), rng()} * cast(float) shiver)
             else Vector2.{};
-        for FONT[text[it] - FONT_ASCII_OFFSET] {
+
+        glyph_strokes := *FONT[text[text_index]-FONT_ASCII_OFFSET];
+
+        fixed_width_stride := glyph.scale.x;
+        stride := fixed_width_stride;
+        stride_remaining := stride;
+        offset: Vector2;
+
+        if style == .PROPORTIONAL {
+            if glyph_strokes.*.count > 0 {
+                leftmost, rightmost: float;
+                for glyph_strokes.* {
+                    start := stroke_point(it.start, glyph_scale);
+                    end   := stroke_point(  it.end, glyph_scale);
+                    if start.x < leftmost  then leftmost  = start.x;
+                    if end.x   < leftmost  then leftmost  = end.x;
+                    if start.x > rightmost then rightmost = start.x;
+                    if end.x   > rightmost then rightmost = end.x;
+                }
+                short_stride := (rightmost-leftmost + 1);
+                if short_stride < stride {
+                    stride = short_stride;
+                    offset.x = -(leftmost+rightmost)*.5;
+                }
+            } else stride = xx proportional_space_width;
+            minus_stride := (stride-1)*.5;
+            if text_index != 0 then cursor.x += minus_stride;
+            stride_remaining = stride - minus_stride;
+        }
+
+        #if DEBUG_GLYPHS {
+            stride_minus_one_over_two := (stride-1)*.5;
+            lower_left  := cursor + Vector2.{-stride_minus_one_over_two, -glyph_scale.y};
+            upper_right := cursor + Vector2.{ stride_minus_one_over_two,  glyph_scale.y};
+            with_alpha :: (v, a) => Vector4.{v.x,v.y,v.z,a};
+            C_BACKGROUND  :: Vector4.{.2,.2,.2,1};
+            Simp.set_shader_for_color(enable_blend=true);
+            Simp.immediate_quad(lower_left.x, lower_left.y, upper_right.x+1, upper_right.y+1, with_alpha(C_BACKGROUND, 1.0));
+            //immediate_pixel_line(.{lower_left.x, cursor.y}, .{upper_right.x, cursor.y}, with_alpha(C_BACKGROUND, 0.2));
+            //immediate_pixel_line(.{cursor.x, lower_left.y}, .{cursor.x, upper_right.y}, with_alpha(C_BACKGROUND, 0.2));
+            
+        }
+
+        for glyph_strokes.* {
             push_line(
-                stroke_point(it.start) + shiver_offset,
-                stroke_point(it.end)   + shiver_offset
+                cursor + stroke_point(it.start, glyph_scale) + offset + shiver_offset,
+                cursor + stroke_point(  it.end, glyph_scale) + offset + shiver_offset
             );
         }
-        cursor += Vector2.{glyph.scale.x+spacing,0};
+        #if DEBUG_GLYPHS then Simp.immediate_quad(cursor.x, cursor.y-glyph_scale.y-1, cursor.x+1, cursor.y-glyph_scale.y, Vector4.{1,0,0,1});
+
+        cursor += Vector2.{stride_remaining+spacing,0};
     }
 }
 
 measure_text :: (text: string, using typesetting: Typesetting = .{}) -> Vector2 {
-    handle_end_of_line :: () #expand {
-        if `chars_this_line > `max_chars_per_line then `max_chars_per_line = `chars_this_line;
-        `chars_this_line = 0;
-        `lines += 1;
-    }
     lines := 0;
-    chars_this_line: int;
-    max_chars_per_line: int;
-    for 0..text.count-1 {
-        if text[it] == #char "\n" {
+    if #complete style == {
+        case .FIXED_WIDTH;
+            handle_end_of_line :: () #expand {
+                if `chars_this_line > `max_chars_per_line then `max_chars_per_line = `chars_this_line;
+                `chars_this_line = 0;
+                `lines += 1;
+            }
+            chars_this_line: int;
+            max_chars_per_line: int;
+            for text_index: 0..text.count-1 {
+                if text[text_index] == #char "\n" {
+                    handle_end_of_line();
+                    continue;
+                } else chars_this_line += 1;
+            }
             handle_end_of_line();
-            continue;
-        } else chars_this_line += 1;
+            return measure_text(max_chars_per_line, lines, typesetting);
+        case .PROPORTIONAL;
+            handle_end_of_line :: () #expand {
+                if `stride_this_line > `max_stride_per_line then `max_stride_per_line = `stride_this_line;
+                `stride_this_line = 0;
+                `lines += 1;
+            }
+            glyph_scale := floor(.{
+                (glyph.scale.x-1)*.5,
+                (glyph.scale.y-1)*.5
+            });
+            stride_this_line: float;
+            max_stride_per_line: float;
+            for text_index: 0..text.count-1 {
+                if text[text_index] == #char "\n" {
+                    handle_end_of_line();
+                    continue;
+                }
+                stride := glyph.scale.x;
+                stride_remaining := stride;
+                glyph_strokes := *FONT[text[text_index]-FONT_ASCII_OFFSET];
+                if glyph_strokes.*.count > 0 {
+                    leftmost, rightmost: float;
+                    for glyph_strokes.* {
+                        start := stroke_point(it.start, glyph_scale);
+                        end   := stroke_point(  it.end, glyph_scale);
+                        if start.x < leftmost  then leftmost  = start.x;
+                        if end.x   < leftmost  then leftmost  = end.x;
+                        if start.x > rightmost then rightmost = start.x;
+                        if end.x   > rightmost then rightmost = end.x;
+                    }
+                    short_stride := (rightmost-leftmost + 1);
+                    if short_stride < stride then stride = short_stride;
+                } else stride = xx proportional_space_width;
+                minus_stride := (stride-1)*.5;
+                /*if text_index != 0 then*/ stride_this_line += minus_stride;
+                stride_remaining = stride - minus_stride;
+                stride_this_line += stride_remaining + ifx text_index != text.count-1 then glyph.spacing;
+            }
+            handle_end_of_line();
+            return Vector2.{max_stride_per_line, lines*glyph.scale.y+max(lines-1, 0)*cast(float) glyph.spacing};
     }
-    handle_end_of_line();
-    return measure_text(max_chars_per_line, lines, typesetting);
 }
 
 measure_text :: (columns: int, rows: int = 1, using typesetting: Typesetting = .{}) -> Vector2 {
+    assert(style != .PROPORTIONAL, "Can't use this form of measure_text() with proportional typesetting!");
     return Vector2.{
         cast(float) columns * glyph.scale.x + max(columns-1, 0) * cast(float) glyph.spacing,
         cast(float) rows    * glyph.scale.y + max(rows   -1, 0) * cast(float) glyph.spacing
@@ -208,6 +267,26 @@ Stroke :: struct {
     start: Point;
     end:   Point;
 }
+
+stroke_point :: (sp: Stroke.Point, glyph_scale: Vector2) -> Vector2 {
+    v: Vector2;
+    if sp.x == {
+        case .NEGATIVE_ONE;  v.x = -glyph_scale.x;
+        case .NEGATIVE_HALF; v.x = round_away_from_zero(-glyph_scale.x * .5);
+        case .ZERO;          v.x = 0;
+        case .POSITIVE_HALF; v.x = round_away_from_zero(glyph_scale.x * .5);
+        case .POSITIVE_ONE;  v.x = glyph_scale.x;
+    }
+    if sp.y == {
+        case .NEGATIVE_ONE;  v.y = -glyph_scale.y;
+        case .NEGATIVE_HALF; v.y = round_away_from_zero(-glyph_scale.y * .5);
+        case .ZERO;          v.y = 0;
+        case .POSITIVE_HALF; v.y = round_away_from_zero(glyph_scale.y * .5);
+        case .POSITIVE_ONE;  v.y = glyph_scale.y;
+    }
+    return v;
+}
+
 Glyph :: #type [..] Stroke;
 FONT : [BASIC_ASCII_COUNT-FONT_ASCII_OFFSET] Glyph : .[
     // Space
