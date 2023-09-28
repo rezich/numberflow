@@ -8,6 +8,7 @@ Typesetting :: struct {
     }
     alignment: enum { LEFT;    CENTER;    RIGHT; } = .LEFT;
     style:     enum { FIXED_WIDTH; PROPORTIONAL; } = .FIXED_WIDTH;
+    color:     COLOR;
     proportional_space_width: int = 1;
 }
 
@@ -61,28 +62,34 @@ round_away_from_zero :: inline (f: float) -> float {
 round_away_from_zero :: inline (using v: Vector2) -> Vector2 { return .{round_away_from_zero(x), round_away_from_zero(y)}; }
 
 
-
+COLOR :: enum { BLACK; WHITE; }
+COLOR_VALUES : [#run enum_highest_value(COLOR)+1] Vector4 : .[
+    .{.196, .184, .157, 1},
+    .{.694, .682, .655, 1}
+];
 
 Line :: struct {
     MAXIMUM :: 1000;
-    COLOR   :: FOREGROUND;
     start: Vector2;
     end:   Vector2;
+    color: COLOR;
 }
 lines: [Line.MAXIMUM] Line;
 next_line:  int;
+frame_lines: int;
 most_lines: int;
 
 push_line :: (point: Vector2) {
     assert(next_line <= Line.MAXIMUM);
     assert(next_line > 0);
-    lines[next_line] = .{lines[next_line-1].end, point};
+    prev_line := lines[next_line-1];
+    lines[next_line] = .{prev_line.end, point, prev_line.color};
     next_line += 1;
 }
 
-push_line :: (start: Vector2, end: Vector2) {
+push_line :: (start: Vector2, end: Vector2, color: COLOR) {
     assert(next_line <= Line.MAXIMUM);
-    lines[next_line] = .{start, end};
+    lines[next_line] = .{start, end, color};
     next_line += 1;
 }
 
@@ -159,7 +166,8 @@ push_text :: (position: Vector2, text: string, typesetting: Typesetting = .{}) {
         for glyph_strokes.* {
             push_line(
                 cursor + stroke_point(it.start, glyph_scale) + offset + shiver_offset,
-                cursor + stroke_point(  it.end, glyph_scale) + offset + shiver_offset
+                cursor + stroke_point(  it.end, glyph_scale) + offset + shiver_offset,
+                color
             );
         }
         #if DEBUG_GLYPHS then Simp.immediate_quad(cursor.x, cursor.y-glyph_scale.y-1, cursor.x+1, cursor.y-glyph_scale.y, Vector4.{1,0,0,1});
@@ -239,10 +247,14 @@ measure_text :: (columns: int, rows: int = 1, using typesetting: Typesetting = .
 }
 
 render_lines :: () {
-    for 0..next_line-1 immediate_pixel_line(lines[it].start, lines[it].end, Line.COLOR);
+    Simp.set_shader_for_color();
+    for 0..next_line-1 immediate_pixel_line(lines[it].start, lines[it].end, COLOR_VALUES[lines[it].color]);
+    flush_lines();
 }
 
-flush_lines :: () { if next_line > most_lines then most_lines = next_line; next_line = 0; }
+flush_lines :: () { frame_lines += next_line; next_line = 0; }
+
+reset_frame_lines :: () { if frame_lines > most_lines then most_lines = frame_lines; frame_lines = 0; }
 
 
 

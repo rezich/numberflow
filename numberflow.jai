@@ -5,26 +5,13 @@ PLATFORM : enum { WINDOWS; PLAYDATE; WEBASM; }         : .WINDOWS;
 DEBUG_MEMORY :: BUILD == .DEVELOPING;
 
 
-COLORS :: struct {
-    BLACK :: Vector4.{.196, .184, .157, 1};
-    WHITE :: Vector4.{.694, .682, .655, 1};
-}
 
-BACKGROUND :: COLORS.BLACK;
-FOREGROUND :: #run ifx BACKGROUND == COLORS.WHITE then COLORS.BLACK else COLORS.WHITE;
 
-state: struct {
-    time: struct {
-        t:  float;
-        dt: float;
-    }
-    numbers: [Number.COUNT] Number;
-    relationships: [..] Number.Relationship;
-}
 
 simulate :: (dt: float) {
     state.time.dt = dt;
     state.time.t += dt; //TODO: fix
+    
     simulate_number_flow();
     //report_numbers();
     reset_temporary_storage();
@@ -65,6 +52,7 @@ main :: () {
 #load "src/Frame_Timer.jai";
 #load "src/Line_Renderer.jai";
 #load "src/Number.jai";
+#load "src/Screens.jai";
 #load "src/UI.jai";
 #load "src/Util.jai";
 
